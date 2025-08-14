@@ -1,17 +1,56 @@
 // app/login/page.tsx
 'use client'
 
-import { useState, FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn, fetchAuthSession } from 'aws-amplify/auth'
+import { useState, FormEvent, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Amplify } from 'aws-amplify'
+import { signIn, fetchAuthSession } from 'aws-amplify/auth'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const from = searchParams.get('from') || '/' // リダイレクト元
+  
   const [username, setUsername] = useState<string>('')
   const [password, setPassword] = useState<string>('')
   const [error, setError] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
+  const [isConfigured, setIsConfigured] = useState<boolean>(false)
+
+  useEffect(() => {
+    const configureAmplify = async () => {
+      try {
+        // サーバーから設定を取得
+        const response = await fetch('/api/auth/config')
+        if (!response.ok) throw new Error('Failed to fetch config')
+        
+        const config = await response.json()
+        
+        // Amplifyを設定
+        Amplify.configure({
+          Auth: {
+            Cognito: {
+              userPoolId: config.userPoolId,
+              userPoolClientId: config.userPoolClientId,
+              signUpVerificationMethod: 'code' as const,
+              loginWith: {
+                username: true,
+                email: false
+              }
+            }
+          }
+        }, { ssr: true })
+        
+        setIsConfigured(true)
+      } catch (error) {
+        console.error('Failed to configure Amplify:', error)
+        setError('設定の読み込みに失敗しました')
+      }
+    }
+    
+    configureAmplify()
+  }, [])
 
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -19,6 +58,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      // クライアントサイドでAmplify認証
       const { isSignedIn } = await signIn({ username, password })
       
       if (isSignedIn) {
@@ -40,13 +80,26 @@ export default function LoginPage() {
         // localStorage から認証情報をクリア（Amplifyのデフォルト保存先）
         localStorage.clear()
         
-        // TOPページへリダイレクト
-        router.push('/')
+        // 成功したら元のページまたはTOPページへ
+        router.push(from)
       }
     } catch (err: any) {
       setError(err.message || 'ログインに失敗しました')
       setLoading(false)
     }
+  }
+
+  if (!isConfigured) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        <div>Loading...</div>
+      </div>
+    )
   }
 
   return (
@@ -109,15 +162,15 @@ export default function LoginPage() {
 
         <button 
           type="submit"
-          disabled={loading}
+          disabled={loading || !isConfigured}
           style={{
             width: '100%',
             padding: '12px',
-            backgroundColor: loading ? '#6c757d' : '#007bff',
+            backgroundColor: loading || !isConfigured ? '#6c757d' : '#007bff',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
+            cursor: loading || !isConfigured ? 'not-allowed' : 'pointer',
             fontSize: '16px'
           }}
         >
