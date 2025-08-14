@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation'
 import { CognitoUserPool } from 'amazon-cognito-identity-js'
 
 const poolData = {
-  UserPoolId: 'ap-northeast-1_fKzqYUlPT',
-  ClientId: '343cj4j8ea4s5bnel4ns9mp26f'
+  UserPoolId: process.env.NEXT_PUBLIC_USER_POOL_ID!,
+  ClientId: process.env.NEXT_PUBLIC_CLIENT_ID!
 }
 
 const userPool = new CognitoUserPool(poolData)
